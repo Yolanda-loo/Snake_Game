@@ -23,15 +23,43 @@
             font-size: 24px;
             margin-bottom: 10px;
         }
+        #startButton, #leftButton, #rightButton, #straightButton {
+            font-size: 18px;
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+        #startButton:hover, #leftButton:hover, #rightButton:hover, #straightButton:hover {
+            background-color: #45a049;
+        }
+        #controls {
+            display: none;
+            margin-top: 10px;
+        }
     </style>
 </head>
 <body>
     <div id="score">Score: 0</div>
+    <button id="startButton">Start Game</button>
     <canvas id="gameCanvas" width="400" height="400"></canvas>
+    <div id="controls">
+        <button id="leftButton">Left</button>
+        <button id="straightButton">Straight</button>
+        <button id="rightButton">Right</button>
+    </div>
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const scoreElement = document.getElementById('score');
+        const startButton = document.getElementById('startButton');
+        const leftButton = document.getElementById('leftButton');
+        const rightButton = document.getElementById('rightButton');
+        const straightButton = document.getElementById('straightButton');
+        const controls = document.getElementById('controls');
 
         const gridSize = 20;
         const tileCount = canvas.width / gridSize;
@@ -39,16 +67,78 @@
             { x: 10, y: 10 },
         ];
         let food = { x: 15, y: 15 };
-        let dx = 0;
+        let dx = 1; // Start moving right
         let dy = 0;
         let score = 0;
         let gameSpeed = 100;
         let gameLoop;
+        let gameStarted = false;
+
+        function drawSnake() {
+            snake.forEach((segment, index) => {
+                // Gradient for body segments
+                const gradient = ctx.createLinearGradient(
+                    segment.x * gridSize, segment.y * gridSize,
+                    (segment.x + 1) * gridSize, (segment.y + 1) * gridSize
+                );
+                gradient.addColorStop(0, index === 0 ? '#2e7d32' : '#4CAF50');
+                gradient.addColorStop(1, index === 0 ? '#1b5e20' : '#388e3c');
+
+                ctx.fillStyle = gradient;
+                ctx.beginPath();
+                ctx.roundRect(segment.x * gridSize + 2, segment.y * gridSize + 2, gridSize - 4, gridSize - 4, 5);
+                ctx.fill();
+
+                // Draw eyes on head
+                if (index === 0) {
+                    ctx.fillStyle = 'white';
+                    const eyeSize = gridSize / 5;
+                    let eyeX1, eyeX2, eyeY1, eyeY2;
+
+                    // Position eyes based on direction
+                    if (dx === 1) { // Moving right
+                        eyeX1 = segment.x * gridSize + gridSize - eyeSize * 2;
+                        eyeX2 = segment.x * gridSize + gridSize - eyeSize * 4;
+                        eyeY1 = eyeY2 = segment.y * gridSize + gridSize / 3;
+                    } else if (dx === -1) { // Moving left
+                        eyeX1 = segment.x * gridSize + eyeSize * 2;
+                        eyeX2 = segment.x * gridSize + eyeSize * 4;
+                        eyeY1 = eyeY2 = segment.y * gridSize + gridSize / 3;
+                    } else if (dy === 1) { // Moving down
+                        eyeX1 = eyeX2 = segment.x * gridSize + gridSize / 3;
+                        eyeY1 = segment.y * gridSize + gridSize - eyeSize * 2;
+                        eyeY2 = segment.y * gridSize + gridSize - eyeSize * 4;
+                    } else { // Moving up
+                        eyeX1 = eyeX2 = segment.x * gridSize + gridSize / 3;
+                        eyeY1 = segment.y * gridSize + eyeSize * 2;
+                        eyeY2 = segment.y * gridSize + eyeSize * 4;
+                    }
+
+                    ctx.beginPath();
+                    ctx.arc(eyeX1, eyeY1, eyeSize, 0, Math.PI * 2);
+                    ctx.arc(eyeX2, eyeY2, eyeSize, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Draw pupils
+                    ctx.fillStyle = 'black';
+                    ctx.beginPath();
+                    ctx.arc(eyeX1, eyeY1, eyeSize / 2, 0, Math.PI * 2);
+                    ctx.arc(eyeX2, eyeY2, eyeSize / 2, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            });
+        }
 
         function drawGame() {
             // Clear canvas
             ctx.fillStyle = 'white';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            if (!gameStarted) {
+                drawSnake();
+                drawFood();
+                return;
+            }
 
             // Move snake
             const head = { x: snake[0].x + dx, y: snake[0].y + dy };
@@ -63,21 +153,28 @@
                 snake.pop();
             }
 
-            // Draw snake
-            ctx.fillStyle = 'green';
-            snake.forEach(segment => {
-                ctx.fillRect(segment.x * gridSize, segment.y * gridSize, gridSize - 2, gridSize - 2);
-            });
-
-            // Draw food
-            ctx.fillStyle = 'red';
-            ctx.fillRect(food.x * gridSize, food.y * gridSize, gridSize - 2, gridSize - 2);
+            // Draw snake and food
+            drawSnake();
+            drawFood();
 
             // Check for collision with walls or self
             if (head.x < 0 || head.x >= tileCount || head.y < 0 || head.y >= tileCount || snakeCollision(head)) {
                 gameOver();
                 return;
             }
+        }
+
+        function drawFood() {
+            ctx.fillStyle = 'red';
+            ctx.beginPath();
+            ctx.arc(
+                food.x * gridSize + gridSize / 2,
+                food.y * gridSize + gridSize / 2,
+                gridSize / 2 - 2,
+                0,
+                Math.PI * 2
+            );
+            ctx.fill();
         }
 
         function generateFood() {
@@ -101,33 +198,55 @@
             // Reset game
             snake = [{ x: 10, y: 10 }];
             food = { x: 15, y: 15 };
-            dx = 0;
+            dx = 1; // Reset to move right
             dy = 0;
             score = 0;
             scoreElement.textContent = `Score: ${score}`;
-            gameLoop = setInterval(drawGame, gameSpeed);
+            gameStarted = false;
+            startButton.style.display = 'block';
+            controls.style.display = 'none';
+            drawGame();
         }
 
-        document.addEventListener('keydown', (e) => {
-            switch (e.key) {
-                case 'ArrowUp':
-                    if (dy !== 1) { dx = 0; dy = -1; }
-                    break;
-                case 'ArrowDown':
-                    if (dy !== -1) { dx = 0; dy = 1; }
-                    break;
-                case 'ArrowLeft':
-                    if (dx !== 1) { dx = -1; dy = 0; }
-                    break;
-                case 'ArrowRight':
-                    if (dx !== -1) { dx = 1; dy = 0; }
-                    break;
+        function changeDirection(newDx, newDy) {
+            // Prevent reversing direction
+            if ((newDx !== 0 && dx !== -newDx) || (newDy !== 0 && dy !== -newDy)) {
+                dx = newDx;
+                dy = newDy;
+            }
+        }
+
+        leftButton.addEventListener('click', () => {
+            if (!gameStarted) return;
+            if (dx === 1) changeDirection(0, -1); // Right to up
+            else if (dx === -1) changeDirection(0, 1); // Left to down
+            else if (dy === 1) changeDirection(-1, 0); // Down to left
+            else if (dy === -1) changeDirection(1, 0); // Up to right
+        });
+
+        rightButton.addEventListener('click', () => {
+            if (!gameStarted) return;
+            if (dx === 1) changeDirection(0, 1); // Right to down
+            else if (dx === -1) changeDirection(0, -1); // Left to up
+            else if (dy === 1) changeDirection(1, 0); // Down to right
+            else if (dy === -1) changeDirection(-1, 0); // Up to left
+        });
+
+        straightButton.addEventListener('click', () => {
+            // Continue in current direction (no change)
+        });
+
+        startButton.addEventListener('click', () => {
+            if (!gameStarted) {
+                gameStarted = true;
+                startButton.style.display = 'none';
+                controls.style.display = 'flex';
+                gameLoop = setInterval(drawGame, gameSpeed);
             }
         });
 
-        // Start game
-        generateFood();
-        gameLoop = setInterval(drawGame, gameSpeed);
+        // Initial draw
+        drawGame();
     </script>
 </body>
 </html>
